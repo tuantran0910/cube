@@ -906,6 +906,7 @@ impl PreSerializedPlan {
             partition_ids_to_execute,
             inline_table_ids_to_execute,
             trace_obj: self.trace_obj.clone(),
+            tenant_id: self.tenant_id.clone(),
         })
     }
 
@@ -916,6 +917,7 @@ impl PreSerializedPlan {
             partition_ids_to_execute: self.partition_ids_to_execute.clone(),
             inline_table_ids_to_execute: self.inline_table_ids_to_execute.clone(),
             trace_obj: self.trace_obj.clone(),
+            tenant_id: self.tenant_id.clone(),
         })
     }
 

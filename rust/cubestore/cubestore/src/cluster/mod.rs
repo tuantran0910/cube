@@ -839,7 +839,7 @@ impl Cluster for ClusterImpl {
             ))
             .await?;
         if in_memory_job.is_some() {
-            self.notify_job_runner(in_memory_node).await?;
+            self.notify_job_runner(in_memory_node.to_string()).await?;
         }
 
         let chunks = self
@@ -1890,14 +1890,18 @@ pub fn pick_serving_worker_by_ids<'a>(
     config: &'a dyn ConfigObj,
     ids: impl IntoIterator<Item = u64>,
 ) -> &'a str {
+    // Try serving workers first
     let workers = config.serving_workers();
-    let workers = if workers.is_empty() {
-        // Fallback to default workers for backward compatibility
-        config.select_workers()
-    } else {
-        &workers
-    };
+    if !workers.is_empty() {
+        let mut hasher = DefaultHasher::new();
+        for p in ids {
+            p.hash(&mut hasher);
+        }
+        return workers[(hasher.finish() % workers.len() as u64) as usize].as_str();
+    }
 
+    // Fallback to default workers for backward compatibility
+    let workers = config.select_workers();
     if workers.is_empty() {
         return config.server_name().as_str();
     }
@@ -1915,14 +1919,18 @@ pub fn pick_building_worker_by_ids<'a>(
     config: &'a dyn ConfigObj,
     ids: impl IntoIterator<Item = u64>,
 ) -> &'a str {
+    // Try building workers first
     let workers = config.building_workers();
-    let workers = if workers.is_empty() {
-        // Fallback to default workers for backward compatibility
-        config.select_workers()
-    } else {
-        &workers
-    };
+    if !workers.is_empty() {
+        let mut hasher = DefaultHasher::new();
+        for p in ids {
+            p.hash(&mut hasher);
+        }
+        return workers[(hasher.finish() % workers.len() as u64) as usize].as_str();
+    }
 
+    // Fallback to default workers for backward compatibility
+    let workers = config.select_workers();
     if workers.is_empty() {
         return config.server_name().as_str();
     }
@@ -1940,14 +1948,20 @@ pub fn pick_serving_worker_by_partitions<'a>(
     config: &'a dyn ConfigObj,
     partitions: impl IntoIterator<Item = &'a IdRow<Partition>>,
 ) -> &'a str {
+    // Try serving workers first
     let workers = config.serving_workers();
-    let workers = if workers.is_empty() {
-        // Fallback to default workers for backward compatibility
-        config.select_workers()
-    } else {
-        &workers
-    };
+    if !workers.is_empty() {
+        let mut hasher = DefaultHasher::new();
+        for partition in partitions {
+            partition.get_row().get_min_val().hash(&mut hasher);
+            partition.get_row().get_max_val().hash(&mut hasher);
+            partition.get_row().get_index_id().hash(&mut hasher);
+        }
+        return workers[(hasher.finish() % workers.len() as u64) as usize].as_str();
+    }
 
+    // Fallback to default workers for backward compatibility
+    let workers = config.select_workers();
     if workers.is_empty() {
         return config.server_name().as_str();
     }
@@ -1967,14 +1981,20 @@ pub fn pick_building_worker_by_partitions<'a>(
     config: &'a dyn ConfigObj,
     partitions: impl IntoIterator<Item = &'a IdRow<Partition>>,
 ) -> &'a str {
+    // Try building workers first
     let workers = config.building_workers();
-    let workers = if workers.is_empty() {
-        // Fallback to default workers for backward compatibility
-        config.select_workers()
-    } else {
-        &workers
-    };
+    if !workers.is_empty() {
+        let mut hasher = DefaultHasher::new();
+        for partition in partitions {
+            partition.get_row().get_min_val().hash(&mut hasher);
+            partition.get_row().get_max_val().hash(&mut hasher);
+            partition.get_row().get_index_id().hash(&mut hasher);
+        }
+        return workers[(hasher.finish() % workers.len() as u64) as usize].as_str();
+    }
 
+    // Fallback to default workers for backward compatibility
+    let workers = config.select_workers();
     if workers.is_empty() {
         return config.server_name().as_str();
     }

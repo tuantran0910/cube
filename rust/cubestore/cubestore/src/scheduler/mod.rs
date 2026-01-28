@@ -1,4 +1,4 @@
-use crate::cluster::{pick_building_worker_by_ids, pick_worker_by_ids, Cluster};
+use crate::cluster::{pick_building_worker_by_ids, Cluster};
 use crate::config::ConfigObj;
 use crate::metastore::chunks::chunk_file_name;
 use crate::metastore::job::{Job, JobStatus, JobType};

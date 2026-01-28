@@ -1,6 +1,5 @@
 use crate::cluster::{
-    pick_serving_worker_by_ids, pick_serving_worker_by_partitions, pick_worker_by_ids,
-    pick_worker_by_partitions, Cluster, WorkerPlanningParams,
+    pick_serving_worker_by_ids, pick_serving_worker_by_partitions, Cluster, WorkerPlanningParams,
 };
 use crate::config::injection::DIService;
 use crate::config::ConfigObj;
