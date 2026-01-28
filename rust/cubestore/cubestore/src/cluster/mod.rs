@@ -644,14 +644,18 @@ impl Cluster for ClusterImpl {
         chunk: &IdRow<Chunk>,
     ) -> Result<String, CubeError> {
         if chunk.get_row().in_memory() {
-            Ok(self.node_name_by_partition(
-                &self
+            // In-memory chunks are served on serving workers
+            Ok(pick_serving_worker_by_partitions(
+                self.config_obj.as_ref(),
+                [&self
                     .meta_store
                     .get_partition(chunk.get_row().get_partition_id())
-                    .await?,
-            ))
+                    .await?],
+            )
+            .to_string())
         } else {
-            Ok(pick_worker_by_ids(self.config_obj.as_ref(), [chunk.get_id()]).to_string())
+            // Regular chunks are processed on building workers
+            Ok(pick_building_worker_by_ids(self.config_obj.as_ref(), [chunk.get_id()]).to_string())
         }
     }
 
@@ -660,7 +664,15 @@ impl Cluster for ClusterImpl {
         table_id: u64,
         location: &str,
     ) -> Result<String, CubeError> {
-        let workers = self.config_obj.select_workers();
+        // Imports are building jobs, use building workers
+        let workers = self.config_obj.building_workers();
+        let workers = if workers.is_empty() {
+            // Fallback to default workers for backward compatibility
+            self.config_obj.select_workers()
+        } else {
+            &workers
+        };
+
         if workers.is_empty() {
             return Ok(self.server_name.to_string());
         }
@@ -817,7 +829,7 @@ impl Cluster for ClusterImpl {
     }
 
     async fn schedule_repartition(&self, p: &IdRow<Partition>) -> Result<(), CubeError> {
-        let in_memory_node = self.node_name_by_partition(p);
+        let in_memory_node = pick_building_worker_by_partitions(self.config_obj.as_ref(), [p]);
         let in_memory_job = self
             .meta_store
             .add_job(Job::new(
@@ -1859,6 +1871,110 @@ pub fn pick_worker_by_partitions<'a>(
     partitions: impl IntoIterator<Item = &'a IdRow<Partition>>,
 ) -> &'a str {
     let workers = config.select_workers();
+    if workers.is_empty() {
+        return config.server_name().as_str();
+    }
+
+    let mut hasher = DefaultHasher::new();
+    for partition in partitions {
+        partition.get_row().get_min_val().hash(&mut hasher);
+        partition.get_row().get_max_val().hash(&mut hasher);
+        partition.get_row().get_index_id().hash(&mut hasher);
+    }
+    workers[(hasher.finish() % workers.len() as u64) as usize].as_str()
+}
+
+/// Compute Group aware worker selection for serving workload (queries).
+/// Uses serving_workers if configured, otherwise falls back to select_workers.
+pub fn pick_serving_worker_by_ids<'a>(
+    config: &'a dyn ConfigObj,
+    ids: impl IntoIterator<Item = u64>,
+) -> &'a str {
+    let workers = config.serving_workers();
+    let workers = if workers.is_empty() {
+        // Fallback to default workers for backward compatibility
+        config.select_workers()
+    } else {
+        &workers
+    };
+
+    if workers.is_empty() {
+        return config.server_name().as_str();
+    }
+
+    let mut hasher = DefaultHasher::new();
+    for p in ids {
+        p.hash(&mut hasher);
+    }
+    workers[(hasher.finish() % workers.len() as u64) as usize].as_str()
+}
+
+/// Compute Group aware worker selection for building workload (background jobs).
+/// Uses building_workers if configured, otherwise falls back to select_workers.
+pub fn pick_building_worker_by_ids<'a>(
+    config: &'a dyn ConfigObj,
+    ids: impl IntoIterator<Item = u64>,
+) -> &'a str {
+    let workers = config.building_workers();
+    let workers = if workers.is_empty() {
+        // Fallback to default workers for backward compatibility
+        config.select_workers()
+    } else {
+        &workers
+    };
+
+    if workers.is_empty() {
+        return config.server_name().as_str();
+    }
+
+    let mut hasher = DefaultHasher::new();
+    for p in ids {
+        p.hash(&mut hasher);
+    }
+    workers[(hasher.finish() % workers.len() as u64) as usize].as_str()
+}
+
+/// Compute Group aware worker selection for serving workload using partitions.
+/// Uses serving_workers if configured, otherwise falls back to select_workers.
+pub fn pick_serving_worker_by_partitions<'a>(
+    config: &'a dyn ConfigObj,
+    partitions: impl IntoIterator<Item = &'a IdRow<Partition>>,
+) -> &'a str {
+    let workers = config.serving_workers();
+    let workers = if workers.is_empty() {
+        // Fallback to default workers for backward compatibility
+        config.select_workers()
+    } else {
+        &workers
+    };
+
+    if workers.is_empty() {
+        return config.server_name().as_str();
+    }
+
+    let mut hasher = DefaultHasher::new();
+    for partition in partitions {
+        partition.get_row().get_min_val().hash(&mut hasher);
+        partition.get_row().get_max_val().hash(&mut hasher);
+        partition.get_row().get_index_id().hash(&mut hasher);
+    }
+    workers[(hasher.finish() % workers.len() as u64) as usize].as_str()
+}
+
+/// Compute Group aware worker selection for building workload using partitions.
+/// Uses building_workers if configured, otherwise falls back to select_workers.
+pub fn pick_building_worker_by_partitions<'a>(
+    config: &'a dyn ConfigObj,
+    partitions: impl IntoIterator<Item = &'a IdRow<Partition>>,
+) -> &'a str {
+    let workers = config.building_workers();
+    let workers = if workers.is_empty() {
+        // Fallback to default workers for backward compatibility
+        config.select_workers()
+    } else {
+        &workers
+    };
+
     if workers.is_empty() {
         return config.server_name().as_str();
     }

@@ -1,4 +1,4 @@
-use crate::cluster::{pick_worker_by_ids, Cluster};
+use crate::cluster::{pick_building_worker_by_ids, pick_worker_by_ids, Cluster};
 use crate::config::ConfigObj;
 use crate::metastore::chunks::chunk_file_name;
 use crate::metastore::job::{Job, JobStatus, JobType};
@@ -1199,7 +1199,7 @@ impl SchedulerImpl {
         &self,
         multi_partition_id: u64,
     ) -> Result<(), CubeError> {
-        let node = pick_worker_by_ids(self.config.as_ref(), [multi_partition_id]).to_string();
+        let node = pick_building_worker_by_ids(self.config.as_ref(), [multi_partition_id]).to_string();
         let job = self
             .meta_store
             .add_job(Job::new(
@@ -1227,7 +1227,7 @@ impl SchedulerImpl {
         {
             return Ok(());
         }
-        let node = pick_worker_by_ids(self.config.as_ref(), [multi_partition_id]).to_string();
+        let node = pick_building_worker_by_ids(self.config.as_ref(), [multi_partition_id]).to_string();
         let job = self
             .meta_store
             .add_job(Job::new(

@@ -71,6 +71,7 @@ export class CubeStoreDriver extends BaseDriver implements DriverInterface {
       port: config?.port || getEnv('cubeStorePort') || '3030',
       user: config?.user || getEnv('cubeStoreUser'),
       password: config?.password || getEnv('cubeStorePass'),
+      computeGroupName: config?.computeGroupName,
     };
     this.baseUrl = (this.config.url || `ws://${this.config.host}:${this.config.port}/`).replace(/\/ws$/, '/').replace(/\/$/, '');
     this.connection = new WebSocketConnection(`${this.baseUrl}/ws`);
@@ -83,7 +84,11 @@ export class CubeStoreDriver extends BaseDriver implements DriverInterface {
   public async query<R = any>(query: string, values: any[], options?: QueryOptions): Promise<R[]> {
     const { inlineTables, ...queryTracingObj } = options ?? {};
     const sql = formatSql(query, values || []);
-    return this.connection.query(sql, inlineTables ?? [], { ...queryTracingObj, instance: getEnv('instanceId') });
+    return this.connection.query(sql, inlineTables ?? [], {
+      ...queryTracingObj,
+      instance: getEnv('instanceId'),
+      tenantId: this.config.computeGroupName
+    });
   }
 
   public async release() {

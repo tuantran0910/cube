@@ -22,4 +22,9 @@ export interface ConnectionConfig {
    * The password
    */
   password?: string;
+
+  /**
+   * The compute group name for multi-tenancy routing (optional)
+   */
+  computeGroupName?: string;
 }

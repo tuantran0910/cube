@@ -1,5 +1,6 @@
 use crate::cluster::{
-    pick_worker_by_ids, pick_worker_by_partitions, Cluster, WorkerPlanningParams,
+    pick_serving_worker_by_ids, pick_serving_worker_by_partitions, pick_worker_by_ids,
+    pick_worker_by_partitions, Cluster, WorkerPlanningParams,
 };
 use crate::config::injection::DIService;
 use crate::config::ConfigObj;
@@ -1558,8 +1559,8 @@ impl ClusterSendExec {
                 .next()
                 .and_then(|p| p.get_row().multi_partition_id())
             {
-                Some(multi_id) => pick_worker_by_ids(c, [multi_id]),
-                None => pick_worker_by_partitions(c, partitions.iter()),
+                Some(multi_id) => pick_serving_worker_by_ids(c, [multi_id]),
+                None => pick_serving_worker_by_partitions(c, partitions.iter()),
             };
             let node_entry = &mut m.entry(node.to_string()).or_default();
             node_entry

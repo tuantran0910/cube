@@ -66,6 +66,40 @@ use tokio::sync::broadcast;
 use tokio::task::JoinHandle;
 use tokio::time::{timeout_at, Duration, Instant};
 
+/// Compute group type defines the workload role of this worker/router.
+///
+/// - `Serving`: Handles user queries only (read workload)
+/// - `Building`: Handles background jobs only (write workload like compaction, imports)
+/// - `Mixed`: Handles both queries and jobs (default, backward compatible)
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ComputeGroupType {
+    Serving,
+    Building,
+    Mixed,
+}
+
+impl FromStr for ComputeGroupType {
+    type Err = CubeError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s.to_lowercase().as_str() {
+            "serving" => Ok(ComputeGroupType::Serving),
+            "building" => Ok(ComputeGroupType::Building),
+            "mixed" => Ok(ComputeGroupType::Mixed),
+            other => Err(CubeError::user(format!(
+                "Unsupported compute group type: {}. Expected 'serving', 'building', or 'mixed'",
+                other
+            ))),
+        }
+    }
+}
+
+impl Default for ComputeGroupType {
+    fn default() -> Self {
+        ComputeGroupType::Mixed
+    }
+}
+
 #[derive(Clone)]
 pub struct CubeServices {
     pub injector: Arc<Injector>,
@@ -550,6 +584,15 @@ pub trait ConfigObj: DIService {
     fn remote_files_cleanup_batch_size(&self) -> u64;
 
     fn create_table_max_retries(&self) -> u64;
+
+    // Compute Group Configuration
+    fn compute_group_name(&self) -> String;
+
+    fn compute_group_type(&self) -> ComputeGroupType;
+
+    fn serving_workers(&self) -> Vec<String>;
+
+    fn building_workers(&self) -> Vec<String>;
 }
 
 #[derive(Debug, Clone)]
@@ -652,6 +695,11 @@ pub struct ConfigObjImpl {
     pub remote_files_cleanup_delay_secs: u64,
     pub remote_files_cleanup_batch_size: u64,
     pub create_table_max_retries: u64,
+    // Compute Group Configuration
+    pub compute_group_name: String,
+    pub compute_group_type: ComputeGroupType,
+    pub serving_workers: Vec<String>,
+    pub building_workers: Vec<String>,
 }
 
 crate::di_service!(ConfigObjImpl, [ConfigObj]);
@@ -1033,6 +1081,22 @@ impl ConfigObj for ConfigObjImpl {
 
     fn cachestore_cache_eviction_proactive_size_threshold(&self) -> u32 {
         self.cachestore_cache_eviction_proactive_size_threshold
+    }
+
+    fn compute_group_name(&self) -> String {
+        self.compute_group_name.clone()
+    }
+
+    fn compute_group_type(&self) -> ComputeGroupType {
+        self.compute_group_type
+    }
+
+    fn serving_workers(&self) -> Vec<String> {
+        self.serving_workers.clone()
+    }
+
+    fn building_workers(&self) -> Vec<String> {
+        self.building_workers.clone()
     }
 }
 
@@ -1569,6 +1633,19 @@ impl Config {
                     50000,
                 ),
                 create_table_max_retries: env_parse("CUBESTORE_CREATE_TABLE_MAX_RETRIES", 3),
+                // Compute Group Configuration
+                compute_group_name: env::var("CUBESTORE_COMPUTE_GROUP_NAME")
+                    .ok()
+                    .unwrap_or_else(|| "default".to_string()),
+                compute_group_type: env_parse("CUBESTORE_COMPUTE_GROUP_TYPE", ComputeGroupType::Mixed),
+                serving_workers: env::var("CUBESTORE_SERVING_WORKERS")
+                    .ok()
+                    .map(|v| v.split(",").map(|s| s.to_string()).collect())
+                    .unwrap_or(Vec::new()),
+                building_workers: env::var("CUBESTORE_BUILDING_WORKERS")
+                    .ok()
+                    .map(|v| v.split(",").map(|s| s.to_string()).collect())
+                    .unwrap_or(Vec::new()),
             }),
         }
     }
@@ -1713,6 +1790,11 @@ impl Config {
                 remote_files_cleanup_delay_secs: 3600,
                 remote_files_cleanup_batch_size: 50000,
                 create_table_max_retries: 3,
+                // Compute Group Configuration (test defaults)
+                compute_group_name: "default".to_string(),
+                compute_group_type: ComputeGroupType::Mixed,
+                serving_workers: Vec::new(),
+                building_workers: Vec::new(),
             }
         }
     }

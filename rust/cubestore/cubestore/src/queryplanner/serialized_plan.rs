@@ -80,6 +80,7 @@ pub struct PreSerializedPlan {
     partition_ids_to_execute: Vec<(u64, RowFilter)>,
     inline_table_ids_to_execute: Vec<InlineTableId>,
     trace_obj: Option<String>,
+    tenant_id: Option<String>,
 }
 
 #[derive(Clone, Serialize, Deserialize, Debug)]
@@ -89,6 +90,8 @@ pub struct SerializedPlan {
     partition_ids_to_execute: Vec<(u64, RowFilter)>,
     inline_table_ids_to_execute: Vec<InlineTableId>,
     trace_obj: Option<String>,
+    /// Tenant ID for multi-tenancy routing via compute groups
+    tenant_id: Option<String>,
 }
 
 #[derive(Clone, Serialize, Deserialize, Debug)]
@@ -868,6 +871,7 @@ impl PreSerializedPlan {
             partition_ids_to_execute: self.partition_ids_to_execute.clone(),
             inline_table_ids_to_execute: self.inline_table_ids_to_execute.clone(),
             trace_obj: self.trace_obj.clone(),
+            tenant_id: self.tenant_id.clone(),
         })
     }
 
@@ -882,6 +886,7 @@ impl PreSerializedPlan {
             partition_ids_to_execute: Vec::new(),
             inline_table_ids_to_execute: Vec::new(),
             trace_obj,
+            tenant_id: None,
         })
     }
 
@@ -1009,6 +1014,7 @@ impl SerializedPlan {
             partition_ids_to_execute: Vec::new(),
             inline_table_ids_to_execute: Vec::new(),
             trace_obj,
+            tenant_id: None,
         })
     }
 
@@ -1029,6 +1035,7 @@ impl SerializedPlan {
             partition_ids_to_execute: self.partition_ids_to_execute.clone(),
             inline_table_ids_to_execute: self.inline_table_ids_to_execute.clone(),
             trace_obj: self.trace_obj.clone(),
+            tenant_id: self.tenant_id.clone(),
         })
     }
 

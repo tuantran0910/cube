@@ -131,6 +131,31 @@ impl Job {
     pub fn priority(&self) -> u32 {
         get_job_type_priority(&self.job_type)
     }
+
+    /// Returns true if this job should run on building workers (background data processing).
+    /// Building jobs include: data ingestion, partitioning, compaction, imports.
+    pub fn is_building_job(&self) -> bool {
+        matches!(
+            &self.job_type,
+            JobType::WalPartitioning
+                | JobType::PartitionCompaction
+                | JobType::TableImport
+                | JobType::Repartition
+                | JobType::TableImportCSV(_)
+                | JobType::MultiPartitionSplit
+                | JobType::FinishMultiSplit
+                | JobType::RepartitionChunk
+        )
+    }
+
+    /// Returns true if this job should run on serving workers (query serving related).
+    /// Serving jobs include: in-memory chunks compaction.
+    pub fn is_serving_job(&self) -> bool {
+        matches!(
+            &self.job_type,
+            JobType::InMemoryChunksCompaction | JobType::NodeInMemoryChunksCompaction(_)
+        )
+    }
 }
 
 #[derive(Clone, Copy, Debug)]
