@@ -1,0 +1,139 @@
+name: Docker Images
+
+on:
+  push:
+    tags:
+      - 'v*'
+      - 'cube-v*'
+      - 'cubestore-v*'
+
+permissions:
+  contents: read
+  packages: write
+
+env:
+  CUBE_IMAGE: cube-local:dev
+  CUBESTORE_IMAGE: cubestore-local:dev
+  PYTHON_VERSION_CURRENT: 3.11
+
+jobs:
+  build-cube:
+    name: Build Cube Image
+    runs-on: self-hosted
+    timeout-minutes: 180
+    outputs:
+      image: ${{ env.CUBE_IMAGE }}
+      tag: ${{ steps.meta.outputs.tags }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Extract tag name
+        id: tag
+        run: echo "tag=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push Cube image
+        id: meta
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./packages/cubejs-docker/dev.Dockerfile
+          tags: |
+            ghcr.io/${{ github.repository_owner }}/cube:${{ steps.tag.outputs.tag }}
+            ghcr.io/${{ github.repository_owner }}/cube:latest
+          platforms: linux/arm64
+          push: true
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  build-cubestore:
+    name: Build CubeStore Image
+    runs-on: self-hosted
+    timeout-minutes: 180
+    outputs:
+      image: ${{ env.CUBESTORE_IMAGE }}
+      tag: ${{ steps.meta.outputs.tags }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Extract tag name
+        id: tag
+        run: echo "tag=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push CubeStore image
+        id: meta
+        uses: docker/build-push-action@v6
+        with:
+          context: ./rust/
+          file: ./rust/cubestore/Dockerfile
+          tags: |
+            ghcr.io/${{ github.repository_owner }}/cubestore:${{ steps.tag.outputs.tag }}
+            ghcr.io/${{ github.repository_owner }}/cubestore:latest
+          build-args: WITH_AVX2=1
+          platforms: linux/arm64
+          push: true
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  summary:
+    name: Build Summary
+    runs-on: self-hosted
+    needs: [build-cube, build-cubestore]
+    if: always()
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Extract tag name
+        id: tag
+        run: echo "tag=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+
+      - name: Image summary
+        run: |
+          echo "### Docker Images Built" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Tag:** \`${{ steps.tag.outputs.tag }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "**Platforms:** linux/amd64, linux/arm64" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Image Tags:**" >> $GITHUB_STEP_SUMMARY
+          echo "- \`ghcr.io/${{ github.repository_owner }}/cube:${{ steps.tag.outputs.tag }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- \`ghcr.io/${{ github.repository_owner }}/cube:latest\`" >> $GITHUB_STEP_SUMMARY
+          echo "- \`ghcr.io/${{ github.repository_owner }}/cubestore:${{ steps.tag.outputs.tag }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- \`ghcr.io/${{ github.repository_owner }}/cubestore:latest\`" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Usage on Mac:**" >> $GITHUB_STEP_SUMMARY
+          echo '```bash' >> $GITHUB_STEP_SUMMARY
+          echo "docker pull ghcr.io/${{ github.repository_owner }}/cube:${{ steps.tag.outputs.tag }}" >> $GITHUB_STEP_SUMMARY
+          echo "docker pull ghcr.io/${{ github.repository_owner }}/cubestore:${{ steps.tag.outputs.tag }}" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Status:**" >> $GITHUB_STEP_SUMMARY
+          echo "- Cube image: ${{ needs.build-cube.result }}" >> $GITHUB_STEP_SUMMARY
+          echo "- CubeStore image: ${{ needs.build-cubestore.result }}" >> $GITHUB_STEP_SUMMARY
