@@ -590,9 +590,9 @@ pub trait ConfigObj: DIService {
 
     fn compute_group_type(&self) -> ComputeGroupType;
 
-    fn serving_workers(&self) -> Vec<String>;
+    fn serving_workers(&self) -> &Vec<String>;
 
-    fn building_workers(&self) -> Vec<String>;
+    fn building_workers(&self) -> &Vec<String>;
 }
 
 #[derive(Debug, Clone)]
@@ -1091,12 +1091,12 @@ impl ConfigObj for ConfigObjImpl {
         self.compute_group_type
     }
 
-    fn serving_workers(&self) -> Vec<String> {
-        self.serving_workers.clone()
+    fn serving_workers(&self) -> &Vec<String> {
+        &self.serving_workers
     }
 
-    fn building_workers(&self) -> Vec<String> {
-        self.building_workers.clone()
+    fn building_workers(&self) -> &Vec<String> {
+        &self.building_workers
     }
 }
 

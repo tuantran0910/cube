@@ -666,20 +666,24 @@ impl Cluster for ClusterImpl {
     ) -> Result<String, CubeError> {
         // Imports are building jobs, use building workers
         let workers = self.config_obj.building_workers();
-        let workers = if workers.is_empty() {
-            // Fallback to default workers for backward compatibility
-            self.config_obj.select_workers()
-        } else {
-            &workers
-        };
+        if !workers.is_empty() {
+            let mut hasher = DefaultHasher::new();
+            table_id.hash(&mut hasher);
+            location.hash(&mut hasher);
+            let idx = (hasher.finish() % workers.len() as u64) as usize;
+            return Ok(workers[idx].to_string());
+        }
 
+        // Fallback to default workers for backward compatibility
+        let workers = self.config_obj.select_workers();
         if workers.is_empty() {
             return Ok(self.server_name.to_string());
         }
         let mut hasher = DefaultHasher::new();
         table_id.hash(&mut hasher);
         location.hash(&mut hasher);
-        Ok(workers[(hasher.finish() % workers.len() as u64) as usize].to_string())
+        let idx = (hasher.finish() % workers.len() as u64) as usize;
+        Ok(workers[idx].to_string())
     }
 
     async fn warmup_partition(
@@ -1897,7 +1901,8 @@ pub fn pick_serving_worker_by_ids<'a>(
         for p in ids {
             p.hash(&mut hasher);
         }
-        return workers[(hasher.finish() % workers.len() as u64) as usize].as_str();
+        let idx = (hasher.finish() % workers.len() as u64) as usize;
+        return workers[idx].as_str();
     }
 
     // Fallback to default workers for backward compatibility
@@ -1910,7 +1915,8 @@ pub fn pick_serving_worker_by_ids<'a>(
     for p in ids {
         p.hash(&mut hasher);
     }
-    workers[(hasher.finish() % workers.len() as u64) as usize].as_str()
+    let idx = (hasher.finish() % workers.len() as u64) as usize;
+    workers[idx].as_str()
 }
 
 /// Compute Group aware worker selection for building workload (background jobs).
@@ -1926,7 +1932,8 @@ pub fn pick_building_worker_by_ids<'a>(
         for p in ids {
             p.hash(&mut hasher);
         }
-        return workers[(hasher.finish() % workers.len() as u64) as usize].as_str();
+        let idx = (hasher.finish() % workers.len() as u64) as usize;
+        return workers[idx].as_str();
     }
 
     // Fallback to default workers for backward compatibility
@@ -1939,7 +1946,8 @@ pub fn pick_building_worker_by_ids<'a>(
     for p in ids {
         p.hash(&mut hasher);
     }
-    workers[(hasher.finish() % workers.len() as u64) as usize].as_str()
+    let idx = (hasher.finish() % workers.len() as u64) as usize;
+    workers[idx].as_str()
 }
 
 /// Compute Group aware worker selection for serving workload using partitions.
@@ -1957,7 +1965,8 @@ pub fn pick_serving_worker_by_partitions<'a>(
             partition.get_row().get_max_val().hash(&mut hasher);
             partition.get_row().get_index_id().hash(&mut hasher);
         }
-        return workers[(hasher.finish() % workers.len() as u64) as usize].as_str();
+        let idx = (hasher.finish() % workers.len() as u64) as usize;
+        return workers[idx].as_str();
     }
 
     // Fallback to default workers for backward compatibility
@@ -1972,7 +1981,8 @@ pub fn pick_serving_worker_by_partitions<'a>(
         partition.get_row().get_max_val().hash(&mut hasher);
         partition.get_row().get_index_id().hash(&mut hasher);
     }
-    workers[(hasher.finish() % workers.len() as u64) as usize].as_str()
+    let idx = (hasher.finish() % workers.len() as u64) as usize;
+    workers[idx].as_str()
 }
 
 /// Compute Group aware worker selection for building workload using partitions.
@@ -1990,7 +2000,8 @@ pub fn pick_building_worker_by_partitions<'a>(
             partition.get_row().get_max_val().hash(&mut hasher);
             partition.get_row().get_index_id().hash(&mut hasher);
         }
-        return workers[(hasher.finish() % workers.len() as u64) as usize].as_str();
+        let idx = (hasher.finish() % workers.len() as u64) as usize;
+        return workers[idx].as_str();
     }
 
     // Fallback to default workers for backward compatibility
@@ -2005,5 +2016,6 @@ pub fn pick_building_worker_by_partitions<'a>(
         partition.get_row().get_max_val().hash(&mut hasher);
         partition.get_row().get_index_id().hash(&mut hasher);
     }
-    workers[(hasher.finish() % workers.len() as u64) as usize].as_str()
+    let idx = (hasher.finish() % workers.len() as u64) as usize;
+    workers[idx].as_str()
 }
